@@ -35,9 +35,9 @@ jobs:
       - name: Install dependencies
         run: |
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            'cd /var/lib/wg-cleaning-bot && npm ci --omit=dev'
+            'bash -lc "cd /var/lib/wg-cleaning-bot && npm ci --omit=dev"'
 
       - name: Restart service
         run: |
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            'sudo systemctl restart wg-cleaning-bot'
+            'bash -lc "sudo systemctl restart wg-cleaning-bot"'
