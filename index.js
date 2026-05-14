@@ -60,6 +60,8 @@ async function resolveToPhoneJid(senderJid, pushName) {
   return null; // unknown sender
 }
 
+let schedulerStarted = false;
+
 async function connectToWhatsApp() {
   const { state, saveCreds } = await useMultiFileAuthState('./auth_info');
   const { version } = await fetchLatestBaileysVersion();
@@ -90,8 +92,11 @@ async function connectToWhatsApp() {
 
     if (connection === 'open') {
       console.log('Connected to WhatsApp.');
-      startScheduler(bot);
-      startTriggerServer(bot);
+      if (!schedulerStarted) {
+        schedulerStarted = true;
+        startScheduler(bot);
+        startTriggerServer(bot);
+      }
     }
   });
 
