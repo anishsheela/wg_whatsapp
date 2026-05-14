@@ -1,0 +1,17 @@
+{
+  "groupJid": "REPLACE_WITH_GROUP_JID@g.us",
+  "rotationStartDates": {
+    "kitchen": "2025-01-01",
+    "fullclean": "2025-01-04",
+    "toilet": "2025-01-07"
+  },
+  "schedule": {
+    "kitchenNotifyHour": 8,
+    "kitchenReminderHour": 22,
+    "weeklyDay": 6,
+    "fullCleanHour": 10,
+    "toiletHour": 11,
+    "weeklyReminderHour": 22
+  },
+  "databaseUrl": "postgresql://user:password@localhost:5432/wg_bot"
+}

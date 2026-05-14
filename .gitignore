@@ -1,0 +1,14 @@
+node_modules/
+
+# WhatsApp session — contains auth credentials, never commit
+auth_info/
+
+# Local config with real DB URL and group JID
+config.json
+
+# Seed file may contain real phone numbers
+members_seed.sql
+
+# Logs and OS noise
+*.log
+.DS_Store
