@@ -13,11 +13,50 @@ import { startScheduler } from './scheduler.js';
 import { handleDone as kitchenDone } from './tasks/kitchen.js';
 import { handleDone as fullcleanDone } from './tasks/fullclean.js';
 import { handleDone as toiletDone } from './tasks/toilet.js';
+import { getMemberByLid, getMemberByName, setMemberLid, getMemberById } from './db.js';
 
 const require = createRequire(import.meta.url);
 const config = require('./config.json');
 
-const logger = pino({ level: 'silent' }); // suppress Baileys internal noise
+const logger = pino({ level: 'silent' });
+
+function namedSock(sock) {
+  const prefix = `${config.botName}:`;
+  return new Proxy(sock, {
+    get(target, prop) {
+      if (prop !== 'sendMessage') return target[prop];
+      return (jid, content, options) => {
+        if (typeof content.text === 'string') {
+          content = { ...content, text: `${prefix} ${content.text}` };
+        }
+        return target.sendMessage(jid, content, options);
+      };
+    },
+  });
+}
+
+// WhatsApp groups now use LIDs (@lid) instead of phone numbers (@s.whatsapp.net).
+// On first contact we match by pushName and store the LID for future lookups.
+async function resolveToPhoneJid(senderJid, pushName) {
+  if (!senderJid.endsWith('@lid')) return senderJid; // already a phone JID
+
+  const lid = senderJid.split('@')[0];
+
+  let member = await getMemberByLid(lid);
+  if (member) return `${member.id}@s.whatsapp.net`;
+
+  // Bootstrap: match by display name and persist the LID.
+  if (pushName) {
+    member = await getMemberByName(pushName);
+    if (member) {
+      await setMemberLid(member.id, lid);
+      console.log(`Mapped LID ${lid} → ${member.name} (${member.id})`);
+      return `${member.id}@s.whatsapp.net`;
+    }
+  }
+
+  return null; // unknown sender
+}
 
 async function connectToWhatsApp() {
   const { state, saveCreds } = await useMultiFileAuthState('./auth_info');
@@ -27,7 +66,7 @@ async function connectToWhatsApp() {
     version,
     auth: state,
     logger,
-    printQRInTerminal: false, // we print it ourselves for clarity
+    printQRInTerminal: false,
   });
 
   sock.ev.on('creds.update', saveCreds);
@@ -47,9 +86,11 @@ async function connectToWhatsApp() {
 
     if (connection === 'open') {
       console.log('Connected to WhatsApp.');
-      startScheduler(sock);
+      startScheduler(namedSock(sock));
     }
   });
+
+  const bot = namedSock(sock);
 
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return;
@@ -58,7 +99,7 @@ async function connectToWhatsApp() {
       if (msg.key.fromMe) continue;
 
       const jid = msg.key.remoteJid;
-      if (jid !== config.groupJid) continue; // only listen in the configured group
+      if (jid !== config.groupJid) continue;
 
       const text = (
         msg.message?.conversation ||
@@ -66,19 +107,44 @@ async function connectToWhatsApp() {
         ''
       ).trim().toLowerCase();
 
+      const rawSender = msg.key.participant ?? jid;
+
+      // Registration: "register <name>" links this sender's LID to a member.
+      if (text.startsWith('register ')) {
+        const nameArg = text.slice(9).trim();
+        const member = await getMemberByName(nameArg).catch(() => null);
+        if (!member) {
+          await bot.sendMessage(jid, { text: `❌ No member named "${nameArg}" found.` });
+          continue;
+        }
+        const lid = rawSender.split('@')[0];
+        await setMemberLid(member.id, lid).catch(logErr);
+        await bot.sendMessage(jid, { text: `✅ Registered! I'll recognise you as ${member.name} from now on.` });
+        continue;
+      }
+
       if (text !== 'done') continue;
 
-      const sender = msg.key.participant ?? jid; // participant is set in group messages
+      const phoneJid = await resolveToPhoneJid(rawSender, msg.pushName).catch(logErr);
 
-      // Try each task handler in order; stop at first match.
+      if (!phoneJid) {
+        await bot.sendMessage(jid, {
+          text: `I don't recognise you yet. Please send: *register YourName*\nExample: register Anish`,
+        });
+        continue;
+      }
+
       const handled =
-        (await kitchenDone(sock, jid, sender).catch(logErr)) ||
-        (await fullcleanDone(sock, jid, sender).catch(logErr)) ||
-        (await toiletDone(sock, jid, sender).catch(logErr));
+        (await kitchenDone(bot, jid, phoneJid).catch(logErr)) ||
+        (await fullcleanDone(bot, jid, phoneJid).catch(logErr)) ||
+        (await toiletDone(bot, jid, phoneJid).catch(logErr));
 
       if (!handled) {
-        await sock.sendMessage(jid, {
-          text: `You don't have an open duty right now, ${sender.split('@')[0]}.`,
+        const phone = phoneJid.split('@')[0];
+        const member = await getMemberById(phone).catch(() => null);
+        const name = member?.name ?? phone;
+        await bot.sendMessage(jid, {
+          text: `You don't have an open duty right now, ${name}.`,
         });
       }
     }

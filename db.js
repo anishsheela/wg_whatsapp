@@ -46,6 +46,23 @@ export async function getMemberById(id) {
   return rows[0] ?? null;
 }
 
+export async function getMemberByLid(lid) {
+  const { rows } = await pool.query('SELECT * FROM members WHERE lid = $1', [lid]);
+  return rows[0] ?? null;
+}
+
+export async function getMemberByName(name) {
+  const { rows } = await pool.query(
+    'SELECT * FROM members WHERE LOWER(name) = LOWER($1)',
+    [name]
+  );
+  return rows[0] ?? null;
+}
+
+export async function setMemberLid(memberId, lid) {
+  await pool.query('UPDATE members SET lid = $1 WHERE id = $2', [lid, memberId]);
+}
+
 // ── rotation state ────────────────────────────────────────────────────────────
 
 export async function getRotationIdx(taskType) {

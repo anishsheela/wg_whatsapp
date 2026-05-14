@@ -1,5 +1,6 @@
 {
   "groupJid": "REPLACE_WITH_GROUP_JID@g.us",
+  "botName": "Karyasthan",
   "rotationStartDates": {
     "kitchen": "2025-01-01",
     "fullclean": "2025-01-04",

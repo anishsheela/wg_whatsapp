@@ -4,7 +4,8 @@ CREATE TABLE IF NOT EXISTS members (
   id         NUMERIC PRIMARY KEY,
   name       TEXT    NOT NULL,
   roomnumber INT     NOT NULL,
-  gender     CHAR(1) NOT NULL
+  gender     CHAR(1) NOT NULL,
+  lid        TEXT    UNIQUE   -- WhatsApp LID, populated on first message
 );
 
 -- Bot-specific tables only. Do NOT modify the existing `members` table.
