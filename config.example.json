@@ -14,7 +14,9 @@
     "weeklyDay": 6,
     "fullCleanHour": 10,
     "toiletHour": 11,
-    "weeklyReminderHour": 22
+    "weeklyReminderHour": 22,
+    "wasteNotifyHour": 8,
+    "wasteReminderHour": 22
   },
   "databaseUrl": "postgresql://user:password@localhost:5432/wg_bot"
 }

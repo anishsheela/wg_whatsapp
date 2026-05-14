@@ -21,6 +21,14 @@ export async function getStatusMessage() {
     ORDER BY t.task_type
   `, [today, weeklyDay]);
 
+  const { rows: wasteRows } = await pool.query(`
+    SELECT t.assigned_date, t.done, m.name
+    FROM task_log t
+    JOIN members m ON m.id = t.member_ids[1]
+    WHERE t.task_type = 'waste'
+    ORDER BY t.id DESC LIMIT 1
+  `);
+
   const byType = Object.fromEntries(rows.map((r) => [r.task_type, r]));
 
   const fmt = (row) => (row ? (row.done ? '✅' : '⏳') : '—');
@@ -29,16 +37,22 @@ export async function getStatusMessage() {
   const kitchen  = byType['kitchen'];
   const full     = byType['fullclean'];
   const toilet   = byType['toilet'];
+  const waste    = wasteRows[0] ?? null;
 
   // For toilet, names[0] = female (ordered by id), names[1] = male
   const toiletLine = toilet
     ? `🚻 Toilet: Ladies → ${toilet.names[0]}, Gents → ${toilet.names[1]} ${fmt(toilet)}`
     : `🚻 Toilet: not assigned yet`;
 
+  const wasteLine = waste
+    ? `🗑️ Waste (${waste.assigned_date.toISOString().slice(0, 10)}): ${waste.name} ${fmt(waste)}`
+    : `🗑️ Waste: not assigned yet`;
+
   return [
     `*📋 Current duties:*`,
     `🍳 Kitchen (today): ${names(kitchen)} ${fmt(kitchen)}`,
     `🧹 Full clean (this week): ${names(full)} ${fmt(full)}`,
     toiletLine,
+    wasteLine,
   ].join('\n');
 }

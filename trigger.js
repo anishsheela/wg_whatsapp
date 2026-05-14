@@ -2,6 +2,7 @@ import http from 'http';
 import { assignKitchen, remindKitchen, setKitchenStartingMember } from './tasks/kitchen.js';
 import { assignFullClean, remindFullClean, setFullCleanStartingMember } from './tasks/fullclean.js';
 import { assignToilet, remindToilet, setToiletStartingMember } from './tasks/toilet.js';
+import { assignWaste, remindWaste, setWasteStartingMember } from './tasks/waste.js';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
@@ -19,9 +20,13 @@ const HANDLERS = {
   'assign/toilet':    (bot, g, from) => from
     ? setToiletStartingMember(from).then(() => assignToilet(bot, g))
     : assignToilet(bot, g),
+  'assign/waste':     (bot, g, from) => from
+    ? setWasteStartingMember(from).then(() => assignWaste(bot, g, true))
+    : assignWaste(bot, g, true),
   'remind/kitchen':   (bot, g) => remindKitchen(bot, g),
   'remind/fullclean': (bot, g) => remindFullClean(bot, g),
   'remind/toilet':    (bot, g) => remindToilet(bot, g),
+  'remind/waste':     (bot, g) => remindWaste(bot, g),
 };
 
 export function startTriggerServer(bot) {

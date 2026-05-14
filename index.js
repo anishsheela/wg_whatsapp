@@ -13,6 +13,7 @@ import { startScheduler } from './scheduler.js';
 import { handleDone as kitchenDone } from './tasks/kitchen.js';
 import { handleDone as fullcleanDone } from './tasks/fullclean.js';
 import { handleDone as toiletDone } from './tasks/toilet.js';
+import { handleDone as wasteDone } from './tasks/waste.js';
 import { getMemberByLid, getMemberByName, setMemberLid, getMemberById } from './db.js';
 import { getStatusMessage } from './tasks/status.js';
 import { startTriggerServer } from './trigger.js';
@@ -151,7 +152,8 @@ async function connectToWhatsApp() {
       const handled =
         (await kitchenDone(bot, jid, phoneJid).catch(logErr)) ||
         (await fullcleanDone(bot, jid, phoneJid).catch(logErr)) ||
-        (await toiletDone(bot, jid, phoneJid).catch(logErr));
+        (await toiletDone(bot, jid, phoneJid).catch(logErr)) ||
+        (await wasteDone(bot, jid, phoneJid).catch(logErr));
 
       if (!handled) {
         const phone = phoneJid.split('@')[0];

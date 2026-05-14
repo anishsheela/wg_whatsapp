@@ -118,6 +118,14 @@ export async function markReminded(logId) {
   await pool.query('UPDATE task_log SET reminded = TRUE WHERE id = $1', [logId]);
 }
 
+export async function getLastLog(taskType) {
+  const { rows } = await pool.query(
+    `SELECT * FROM task_log WHERE task_type = $1 ORDER BY id DESC LIMIT 1`,
+    [taskType]
+  );
+  return rows[0] ?? null;
+}
+
 // ── miss streak ───────────────────────────────────────────────────────────────
 
 export async function getStreak(memberId) {

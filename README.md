@@ -49,6 +49,8 @@ Edit `config.json`:
 | `fullCleanHour` | `10` | Full clean notification hour |
 | `toiletHour` | `11` | Toilet notification hour |
 | `weeklyReminderHour` | `22` | Weekly reminder hour (same day evening) |
+| `wasteNotifyHour` | `8` | Waste disposal assignment hour |
+| `wasteReminderHour` | `22` | Waste disposal reminder hour |
 
 `config.json` is gitignored and never committed.
 
@@ -141,10 +143,16 @@ Names must match exactly (case-insensitive) what's in the `members` table.
 | Toilet assign | Saturday | 11AM | `0 11 * * 6` |
 | Weekly reminder | Saturday | 10PM | `0 22 * * 6` |
 | Weekly close / penalise | Sunday | Midnight | `0 0 * * 0` |
+| Waste assign | Daily* | 8AM | `0 8 * * *` |
+| Waste reminder | Daily | 10PM | `0 22 * * *` |
+| Waste close / penalise | Daily | 11AM | `0 11 * * *` |
+
+\* Waste cron runs daily but only sends a notification every 2 days — it silently skips if fewer than 2 days have passed since the last assignment.
 
 - **Kitchen** — all members ordered by `id`, one per day
 - **Full clean** — the two members sharing each `roomnumber` are paired; pairs rotate weekly and clean all common areas
 - **Toilet** — separate weekly rotations for `gender = f` and `gender = m`
+- **Waste** — all members ordered by `id`, one person every 2 days
 - Missing a duty 2+ times in a row triggers a group callout 🙃
 
 ---
@@ -156,7 +164,7 @@ Go to **Actions → Trigger notification → Run workflow** and choose:
 | Input | Options | Description |
 |---|---|---|
 | `action` | `assign` / `remind` | Send the duty assignment or a reminder nudge |
-| `task` | `kitchen` / `fullclean` / `toilet` | Which task to trigger |
+| `task` | `kitchen` / `fullclean` / `toilet` / `waste` | Which task to trigger |
 | `start_from` | Member name(s) — optional | Set rotation starting point before assigning (see below) |
 
 **`start_from` behaviour per task:**

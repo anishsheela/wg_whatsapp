@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { assignKitchen, remindKitchen, remindKitchenMorning, closeKitchenDay } from './tasks/kitchen.js';
 import { assignFullClean, remindFullClean, closeFullCleanWeek } from './tasks/fullclean.js';
 import { assignToilet, remindToilet, closeToiletWeek } from './tasks/toilet.js';
+import { assignWaste, remindWaste, closeWasteDay } from './tasks/waste.js';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
@@ -48,6 +49,17 @@ export function startScheduler(sock) {
 
   cron.schedule(`5 0 * * ${dayAfterWeekly}`,
     () => closeToiletWeek(sock, g).catch(console.error), tz);
+
+  // ── Waste ──────────────────────────────────────────────────────────────────
+  // assignWaste skips internally if < 2 days since last assignment.
+  cron.schedule(`0 ${s.wasteNotifyHour} * * *`,
+    () => assignWaste(sock, g).catch(console.error), tz);
+
+  cron.schedule(`0 ${s.wasteReminderHour} * * *`,
+    () => remindWaste(sock, g).catch(console.error), tz);
+
+  cron.schedule('10 11 * * *',
+    () => closeWasteDay(sock, g).catch(console.error), tz);
 
   console.log(
     `Scheduler started. Weekly tasks on day ${s.weeklyDay} ` +
