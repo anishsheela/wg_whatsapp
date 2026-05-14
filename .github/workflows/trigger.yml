@@ -37,7 +37,7 @@ jobs:
           FROM="${{ github.event.inputs.start_from }}"
           QUERY=""
           if [ -n "$FROM" ]; then
-            QUERY="?from=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$FROM")"
+            QUERY="?from=${FROM}"
           fi
 
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
