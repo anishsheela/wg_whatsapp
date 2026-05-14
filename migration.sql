@@ -1,3 +1,12 @@
+-- Creates all tables including members.
+
+CREATE TABLE IF NOT EXISTS members (
+  id         NUMERIC PRIMARY KEY,
+  name       TEXT    NOT NULL,
+  roomnumber INT     NOT NULL,
+  gender     CHAR(1) NOT NULL
+);
+
 -- Bot-specific tables only. Do NOT modify the existing `members` table.
 
 -- Tracks the current rotation index and last assignment for each task type.
