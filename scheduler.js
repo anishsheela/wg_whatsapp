@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import { assignKitchen, remindKitchen, closeKitchenDay } from './tasks/kitchen.js';
+import { assignKitchen, remindKitchen, remindKitchenMorning, closeKitchenDay } from './tasks/kitchen.js';
 import { assignFullClean, remindFullClean, closeFullCleanWeek } from './tasks/fullclean.js';
 import { assignToilet, remindToilet, closeToiletWeek } from './tasks/toilet.js';
 import { createRequire } from 'module';
@@ -18,8 +18,11 @@ export function startScheduler(sock) {
   cron.schedule(`0 ${s.kitchenNotifyHour} * * *`,
     () => assignKitchen(sock, g).catch(console.error));
 
-  cron.schedule(`0 ${s.kitchenReminderHour} * * *`,
+  cron.schedule(`0 ${s.kitchenEveningReminderHour} * * *`,
     () => remindKitchen(sock, g).catch(console.error));
+
+  cron.schedule(`${s.kitchenMorningReminderMinute} ${s.kitchenMorningReminderHour} * * *`,
+    () => remindKitchenMorning(sock, g).catch(console.error));
 
   // Penalise at 11AM next day — gives the morning window to still get it done.
   cron.schedule('0 11 * * *',

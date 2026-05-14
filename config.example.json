@@ -8,7 +8,9 @@
   },
   "schedule": {
     "kitchenNotifyHour": 8,
-    "kitchenReminderHour": 22,
+    "kitchenEveningReminderHour": 22,
+    "kitchenMorningReminderHour": 10,
+    "kitchenMorningReminderMinute": 30,
     "weeklyDay": 6,
     "fullCleanHour": 10,
     "toiletHour": 11,

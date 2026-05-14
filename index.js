@@ -15,6 +15,7 @@ import { handleDone as fullcleanDone } from './tasks/fullclean.js';
 import { handleDone as toiletDone } from './tasks/toilet.js';
 import { getMemberByLid, getMemberByName, setMemberLid, getMemberById } from './db.js';
 import { getStatusMessage } from './tasks/status.js';
+import { startTriggerServer } from './trigger.js';
 
 const require = createRequire(import.meta.url);
 const config = require('./config.json');
@@ -70,6 +71,8 @@ async function connectToWhatsApp() {
     printQRInTerminal: false,
   });
 
+  const bot = namedSock(sock);
+
   sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
@@ -87,11 +90,10 @@ async function connectToWhatsApp() {
 
     if (connection === 'open') {
       console.log('Connected to WhatsApp.');
-      startScheduler(namedSock(sock));
+      startScheduler(bot);
+      startTriggerServer(bot);
     }
   });
-
-  const bot = namedSock(sock);
 
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return;

@@ -84,6 +84,31 @@ export async function handleDone(sock, groupJid, senderJid) {
   return true;
 }
 
+// Morning reminder — checks yesterday's duty (assigned previous 8AM).
+export async function remindKitchenMorning(sock, groupJid) {
+  const log = await getOpenLog(TASK, yesterday());
+  if (!log) return;
+
+  const members = await getAllMembers();
+  const assigned = members.find((m) => String(m.id) === String(log.member_ids[0]));
+  if (!assigned) return;
+
+  await sock.sendMessage(groupJid, {
+    text: `⏰ Morning reminder: ${assigned.name}, kitchen duty still isn't marked done! Reply *done*.`,
+  });
+}
+
+// Set rotation so the next assignment starts from a specific member.
+export async function setKitchenStartingMember(memberName) {
+  const members = await getAllMembers();
+  const idx = members.findIndex(
+    (m) => m.name.toLowerCase() === memberName.toLowerCase()
+  );
+  if (idx === -1) throw new Error(`Member "${memberName}" not found`);
+  await advanceRotation(TASK, idx);
+  return members[idx];
+}
+
 // Runs at 11AM — checks yesterday's log to give time for a morning clean.
 export async function closeKitchenDay(sock, groupJid) {
   const date = yesterday();
