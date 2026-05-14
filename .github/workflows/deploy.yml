@@ -1,0 +1,43 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          # Use the stored host key instead of blind ssh-keyscan to prevent MITM.
+          echo "${{ secrets.DEPLOY_HOST_KEY }}" > ~/.ssh/known_hosts
+
+      - name: Sync files
+        run: |
+          rsync -az --delete \
+            --exclude='.git/' \
+            --exclude='auth_info/' \
+            --exclude='config.json' \
+            --exclude='members_seed.sql' \
+            --exclude='node_modules/' \
+            ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/var/lib/wg-cleaning-bot/
+
+      - name: Install dependencies
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            'cd /var/lib/wg-cleaning-bot && npm ci --omit=dev'
+
+      - name: Restart service
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            'sudo systemctl restart wg-cleaning-bot'
