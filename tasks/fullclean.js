@@ -14,6 +14,17 @@ import { thisWeeklyDay } from '../utils.js';
 
 const TASK = 'fullclean';
 
+// Set rotation so the next assignment starts from the pair containing memberName.
+export async function setFullCleanStartingMember(memberName) {
+  const pairs = await getMemberPairs();
+  const idx = pairs.findIndex((p) =>
+    p.members.some((m) => m.name.toLowerCase() === memberName.toLowerCase())
+  );
+  if (idx === -1) throw new Error(`No pair found containing member "${memberName}"`);
+  await advanceRotation(TASK, idx);
+  return pairs[idx];
+}
+
 export async function assignFullClean(sock, groupJid) {
   const pairs = await getMemberPairs();
   const idx = await getRotationIdx(TASK);

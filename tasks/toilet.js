@@ -16,6 +16,24 @@ const TASK_F = 'toilet_f';
 const TASK_M = 'toilet_m';
 const TASK = 'toilet';
 
+// Set toilet rotation starting from one or two members.
+// Pass a single name or "FemaleName,MaleName" to set both at once.
+export async function setToiletStartingMember(nameOrNames) {
+  const names = nameOrNames.split(',').map((n) => n.trim());
+  const females = await getMembersByGender('f');
+  const males = await getMembersByGender('m');
+
+  for (const name of names) {
+    const fIdx = females.findIndex((m) => m.name.toLowerCase() === name.toLowerCase());
+    if (fIdx !== -1) { await advanceRotation(TASK_F, fIdx); continue; }
+
+    const mIdx = males.findIndex((m) => m.name.toLowerCase() === name.toLowerCase());
+    if (mIdx !== -1) { await advanceRotation(TASK_M, mIdx); continue; }
+
+    throw new Error(`Member "${name}" not found in any toilet rotation`);
+  }
+}
+
 export async function assignToilet(sock, groupJid) {
   const females = await getMembersByGender('f');
   const males = await getMembersByGender('m');
