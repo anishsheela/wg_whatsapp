@@ -14,6 +14,7 @@ import { handleDone as kitchenDone } from './tasks/kitchen.js';
 import { handleDone as fullcleanDone } from './tasks/fullclean.js';
 import { handleDone as toiletDone } from './tasks/toilet.js';
 import { getMemberByLid, getMemberByName, setMemberLid, getMemberById } from './db.js';
+import { getStatusMessage } from './tasks/status.js';
 
 const require = createRequire(import.meta.url);
 const config = require('./config.json');
@@ -108,6 +109,12 @@ async function connectToWhatsApp() {
       ).trim().toLowerCase();
 
       const rawSender = msg.key.participant ?? jid;
+
+      if (text === 'today') {
+        const status = await getStatusMessage().catch(logErr);
+        if (status) await bot.sendMessage(jid, { text: status });
+        continue;
+      }
 
       // Registration: "register <name>" links this sender's LID to a member.
       if (text.startsWith('register ')) {
