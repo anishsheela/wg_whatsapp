@@ -56,7 +56,7 @@ Edit `config.json`:
 
 ### 3. Create database tables
 
-The bot expects a PostgreSQL database. Run the migration — it creates `members`, `rotation_state`, `task_log`, and `miss_streak`:
+The bot expects a PostgreSQL database. Run the migrations — they create `members`, `rotation_state`, `task_log`, and `miss_streak`:
 
 ```bash
 npm run migrate
@@ -125,9 +125,20 @@ Names must match exactly (case-insensitive) what's in the `members` table.
 
 | Command | What it does |
 |---|---|
+| `help` | List all commands |
 | `done` | Mark your current duty as complete |
 | `today` | Show all current duty assignments and their status |
 | `register <name>` | Link your WhatsApp account to your member record (once per person) |
+| `takeover <task>` | Do a task on behalf of the assigned person — you get the credit |
+| `skip <task>` | Skip your duty; you move to the end of the rotation and the next person is assigned immediately |
+
+Valid task names for `takeover` and `skip`: `kitchen`, `fullclean`, `toilet`, `waste`.
+
+**Examples:**
+```
+takeover kitchen     — you cleaned the kitchen for whoever was assigned
+skip toilet          — you can't do toilet this week; next person is assigned now
+```
 
 ---
 
@@ -226,13 +237,14 @@ db.js                      — All database queries
 trigger.js                 — Internal HTTP server for manual/CI triggers
 utils.js                   — Shared helpers (thisWeeklyDay)
 tasks/
-  kitchen.js               — Daily kitchen logic
-  fullclean.js             — Weekly full clean logic
-  toilet.js                — Weekly toilet logic
+  kitchen.js               — Daily kitchen logic (done / takeover / skip)
+  fullclean.js             — Weekly full clean logic (done / takeover / skip)
+  toilet.js                — Weekly toilet logic (done / takeover / skip, per-gender)
+  waste.js                 — Waste disposal logic (done / takeover / skip)
   status.js                — "today" command query
 config.example.json        — Config template (copy to config.json)
 config.json                — Your local config (gitignored)
-migration.sql              — Creates all tables
+migration.sql              — Creates all tables and applies schema changes
 migrate.js                 — Runs migration.sql
 members_seed.example.sql   — Member insert template
 members_seed.sql           — Your seed with real numbers (gitignored)

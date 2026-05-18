@@ -5,6 +5,7 @@ import {
   createTaskLog,
   getOpenLog,
   markDone,
+  markSkipped,
   markReminded,
   getStreak,
   incrementStreak,
@@ -96,6 +97,66 @@ export async function remindKitchenMorning(sock, groupJid) {
   await sock.sendMessage(groupJid, {
     text: `⏰ Morning reminder: ${assigned.name}, kitchen duty still isn't marked done! Reply *done*.`,
   });
+}
+
+export async function handleTakeover(sock, groupJid, senderJid) {
+  const log =
+    (await getOpenLog(TASK, today())) ||
+    (await getOpenLog(TASK, yesterday()));
+  if (!log) return false;
+
+  const members = await getAllMembers();
+  const senderPhone = senderJid.split('@')[0];
+  const assigned = members.find((m) => String(m.id) === String(log.member_ids[0]));
+
+  if (assigned && senderPhone === String(assigned.id)) {
+    return handleDone(sock, groupJid, senderJid);
+  }
+
+  const taker = members.find((m) => String(m.id) === senderPhone);
+  if (!taker) return false;
+
+  await markDone(log.id, taker.id);
+  await resetStreak(taker.id);
+
+  const nextIdx = await getRotationIdx(TASK);
+  const next = members[nextIdx % members.length];
+
+  await sock.sendMessage(groupJid, {
+    text: `✅ Kitchen done — ${taker.name} took over for ${assigned?.name ?? 'the assigned person'}! Thanks! Next up: ${next.name} tomorrow.`,
+  });
+  return true;
+}
+
+export async function handleSkip(sock, groupJid, senderJid) {
+  const log =
+    (await getOpenLog(TASK, today())) ||
+    (await getOpenLog(TASK, yesterday()));
+  if (!log) return false;
+
+  const members = await getAllMembers();
+  const senderPhone = senderJid.split('@')[0];
+  const assigned = members.find((m) => String(m.id) === String(log.member_ids[0]));
+
+  if (!assigned || senderPhone !== String(assigned.id)) {
+    const sender = members.find((m) => String(m.id) === senderPhone);
+    await sock.sendMessage(groupJid, {
+      text: `That's not your kitchen duty to skip, ${sender?.name ?? senderPhone}.`,
+    });
+    return true;
+  }
+
+  if (members.length <= 1) {
+    await sock.sendMessage(groupJid, {
+      text: `Can't skip — you're the only one in the kitchen rotation!`,
+    });
+    return true;
+  }
+
+  await markSkipped(log.id);
+  await sock.sendMessage(groupJid, { text: `${assigned.name} has skipped kitchen duty.` });
+  await assignKitchen(sock, groupJid);
+  return true;
 }
 
 // Set rotation so the next assignment starts from a specific member.

@@ -114,6 +114,13 @@ export async function markDone(logId, doneByMemberId) {
   );
 }
 
+export async function markSkipped(logId) {
+  await pool.query(
+    'UPDATE task_log SET done = TRUE, skipped = TRUE WHERE id = $1',
+    [logId]
+  );
+}
+
 export async function markReminded(logId) {
   await pool.query('UPDATE task_log SET reminded = TRUE WHERE id = $1', [logId]);
 }

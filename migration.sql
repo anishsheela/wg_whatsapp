@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS task_log (
 
 CREATE INDEX IF NOT EXISTS task_log_type_date ON task_log (task_type, assigned_date);
 
+ALTER TABLE task_log ADD COLUMN IF NOT EXISTS skipped BOOLEAN NOT NULL DEFAULT FALSE;
+
 -- Counts consecutive misses per member (reset to 0 on completion).
 CREATE TABLE IF NOT EXISTS miss_streak (
   member_id   NUMERIC PRIMARY KEY,

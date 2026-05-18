@@ -5,6 +5,7 @@ import {
   createTaskLog,
   getLastLog,
   markDone,
+  markSkipped,
   markReminded,
   getStreak,
   incrementStreak,
@@ -77,6 +78,62 @@ export async function handleDone(sock, groupJid, senderJid) {
   await sock.sendMessage(groupJid, {
     text: `✅ Waste taken out — thanks ${assigned.name}! Next up in 2 days: ${next.name}.`,
   });
+  return true;
+}
+
+export async function handleTakeover(sock, groupJid, senderJid) {
+  const log = await getLastLog(TASK);
+  if (!log || log.done) return false;
+
+  const members = await getAllMembers();
+  const senderPhone = senderJid.split('@')[0];
+  const assigned = members.find((m) => String(m.id) === String(log.member_ids[0]));
+
+  if (assigned && senderPhone === String(assigned.id)) {
+    return handleDone(sock, groupJid, senderJid);
+  }
+
+  const taker = members.find((m) => String(m.id) === senderPhone);
+  if (!taker) return false;
+
+  await markDone(log.id, taker.id);
+  await resetStreak(taker.id);
+
+  const nextIdx = await getRotationIdx(TASK);
+  const next = members[nextIdx % members.length];
+
+  await sock.sendMessage(groupJid, {
+    text: `✅ Waste taken out — ${taker.name} took over for ${assigned?.name ?? 'the assigned person'}! Thanks! Next up in 2 days: ${next.name}.`,
+  });
+  return true;
+}
+
+export async function handleSkip(sock, groupJid, senderJid) {
+  const log = await getLastLog(TASK);
+  if (!log || log.done) return false;
+
+  const members = await getAllMembers();
+  const senderPhone = senderJid.split('@')[0];
+  const assigned = members.find((m) => String(m.id) === String(log.member_ids[0]));
+
+  if (!assigned || senderPhone !== String(assigned.id)) {
+    const sender = members.find((m) => String(m.id) === senderPhone);
+    await sock.sendMessage(groupJid, {
+      text: `That's not your waste disposal duty to skip, ${sender?.name ?? senderPhone}.`,
+    });
+    return true;
+  }
+
+  if (members.length <= 1) {
+    await sock.sendMessage(groupJid, {
+      text: `Can't skip — you're the only one in the waste rotation!`,
+    });
+    return true;
+  }
+
+  await markSkipped(log.id);
+  await sock.sendMessage(groupJid, { text: `${assigned.name} has skipped waste disposal.` });
+  await assignWaste(sock, groupJid, true); // force=true to bypass the 2-day cooldown check
   return true;
 }
 

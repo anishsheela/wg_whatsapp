@@ -5,6 +5,7 @@ import {
   createTaskLog,
   getOpenLog,
   markDone,
+  markSkipped,
   markReminded,
   incrementStreak,
   resetStreak,
@@ -75,6 +76,77 @@ export async function handleDone(sock, groupJid, senderJid) {
   await sock.sendMessage(groupJid, {
     text: `✅ Full clean done — great work! Next week: ${nextNames}.`,
   });
+  return true;
+}
+
+export async function handleTakeover(sock, groupJid, senderJid) {
+  const date = thisWeeklyDay();
+  const log = await getOpenLog(TASK, date);
+  if (!log) return false;
+
+  const senderPhone = senderJid.split('@')[0];
+  const memberIds = log.member_ids.map(String);
+
+  if (memberIds.includes(senderPhone)) {
+    return handleDone(sock, groupJid, senderJid);
+  }
+
+  const pairs = await getMemberPairs();
+  const allMembers = pairs.flatMap((p) => p.members);
+  const taker = allMembers.find((m) => String(m.id) === senderPhone);
+  if (!taker) return false;
+
+  await markDone(log.id, taker.id);
+  await resetStreak(taker.id);
+
+  const assignedNames = allMembers
+    .filter((m) => memberIds.includes(String(m.id)))
+    .map((m) => m.name)
+    .join(' & ');
+
+  const nextIdx = await getRotationIdx(TASK);
+  const nextNames = pairs[nextIdx % pairs.length].members.map((m) => m.name).join(' & ');
+
+  await sock.sendMessage(groupJid, {
+    text: `✅ Full clean done — ${taker.name} took over for ${assignedNames}! Thanks! Next week: ${nextNames}.`,
+  });
+  return true;
+}
+
+export async function handleSkip(sock, groupJid, senderJid) {
+  const date = thisWeeklyDay();
+  const log = await getOpenLog(TASK, date);
+  if (!log) return false;
+
+  const pairs = await getMemberPairs();
+  const senderPhone = senderJid.split('@')[0];
+  const memberIds = log.member_ids.map(String);
+
+  if (!memberIds.includes(senderPhone)) {
+    const allMembers = pairs.flatMap((p) => p.members);
+    const sender = allMembers.find((m) => String(m.id) === senderPhone);
+    await sock.sendMessage(groupJid, {
+      text: `That's not your full clean duty to skip, ${sender?.name ?? senderPhone}.`,
+    });
+    return true;
+  }
+
+  if (pairs.length <= 1) {
+    await sock.sendMessage(groupJid, {
+      text: `Can't skip — there's only one pair in the full clean rotation!`,
+    });
+    return true;
+  }
+
+  const assignedNames = pairs
+    .flatMap((p) => p.members)
+    .filter((m) => memberIds.includes(String(m.id)))
+    .map((m) => m.name)
+    .join(' & ');
+
+  await markSkipped(log.id);
+  await sock.sendMessage(groupJid, { text: `${assignedNames} have skipped full clean duty.` });
+  await assignFullClean(sock, groupJid);
   return true;
 }
 
