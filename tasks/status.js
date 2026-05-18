@@ -10,7 +10,7 @@ export async function getStatusMessage() {
       t.task_type,
       t.assigned_date,
       t.done,
-      array_agg(m.name ORDER BY m.id) AS names
+      array_agg(m.name ORDER BY array_position(t.member_ids, m.id)) AS names
     FROM task_log t
     JOIN members m ON m.id = ANY(t.member_ids)
     WHERE
@@ -39,7 +39,7 @@ export async function getStatusMessage() {
   const toilet   = byType['toilet'];
   const waste    = wasteRows[0] ?? null;
 
-  // For toilet, names[0] = female (ordered by id), names[1] = male
+  // For toilet, names[0] = female, names[1] = male — order preserved via array_position
   const toiletLine = toilet
     ? `🚻 Toilet: Ladies → ${toilet.names[0]}, Gents → ${toilet.names[1]} ${fmt(toilet)}`
     : `🚻 Toilet: not assigned yet`;
