@@ -10,10 +10,10 @@ import pino from 'pino';
 import { createRequire } from 'module';
 
 import { startScheduler } from './scheduler.js';
-import { handleDone as kitchenDone, handleTakeover as kitchenTakeover, handleSkip as kitchenSkip } from './tasks/kitchen.js';
-import { handleDone as fullcleanDone, handleTakeover as fullcleanTakeover, handleSkip as fullcleanSkip } from './tasks/fullclean.js';
-import { handleDone as toiletDone, handleTakeover as toiletTakeover, handleSkip as toiletSkip } from './tasks/toilet.js';
-import { handleDone as wasteDone, handleTakeover as wasteTakeover, handleSkip as wasteSkip } from './tasks/waste.js';
+import { handleDone as kitchenDone, hasDuty as kitchenHasDuty, handleTakeover as kitchenTakeover, handleSkip as kitchenSkip } from './tasks/kitchen.js';
+import { handleDone as fullcleanDone, hasDuty as fullcleanHasDuty, handleTakeover as fullcleanTakeover, handleSkip as fullcleanSkip } from './tasks/fullclean.js';
+import { handleDone as toiletDone, hasDuty as toiletHasDuty, handleTakeover as toiletTakeover, handleSkip as toiletSkip } from './tasks/toilet.js';
+import { handleDone as wasteDone, hasDuty as wasteHasDuty, handleTakeover as wasteTakeover, handleSkip as wasteSkip } from './tasks/waste.js';
 import { getMemberByLid, getMemberByName, setMemberLid, getMemberById } from './db.js';
 import { getStatusMessage } from './tasks/status.js';
 import { startTriggerServer } from './trigger.js';
@@ -125,7 +125,8 @@ async function connectToWhatsApp() {
             ``,
             `*today* — show current duty status`,
             ``,
-            `*done* — mark your assigned duty as done`,
+            `*done* — mark your assigned duty as done (if you have multiple open duties, you'll be asked to specify)`,
+            `*done <task>* — mark a specific duty as done`,
             ``,
             `*takeover <task>* — do a task on behalf of the assigned person`,
             `*takeover kitchen* | *takeover fullclean* | *takeover toilet* | *takeover waste*`,
@@ -159,7 +160,7 @@ async function connectToWhatsApp() {
         continue;
       }
 
-      const isDone = text === 'done';
+      const isDone = text === 'done' || text.startsWith('done ');
       const isTakeover = text.startsWith('takeover ');
       const isSkip = text.startsWith('skip ');
 
@@ -174,30 +175,53 @@ async function connectToWhatsApp() {
         continue;
       }
 
-      if (isDone) {
-        const handled =
-          (await kitchenDone(bot, jid, phoneJid).catch(logErr)) ||
-          (await fullcleanDone(bot, jid, phoneJid).catch(logErr)) ||
-          (await toiletDone(bot, jid, phoneJid).catch(logErr)) ||
-          (await wasteDone(bot, jid, phoneJid).catch(logErr));
+      const taskHandlers = {
+        kitchen:  { done: kitchenDone,   hasDuty: kitchenHasDuty,   takeover: kitchenTakeover,   skip: kitchenSkip   },
+        fullclean:{ done: fullcleanDone, hasDuty: fullcleanHasDuty, takeover: fullcleanTakeover, skip: fullcleanSkip },
+        toilet:   { done: toiletDone,    hasDuty: toiletHasDuty,    takeover: toiletTakeover,    skip: toiletSkip    },
+        waste:    { done: wasteDone,     hasDuty: wasteHasDuty,     takeover: wasteTakeover,     skip: wasteSkip     },
+      };
 
-        if (!handled) {
-          const phone = phoneJid.split('@')[0];
-          const member = await getMemberById(phone).catch(() => null);
-          const name = member?.name ?? phone;
-          await bot.sendMessage(jid, {
-            text: `You don't have an open duty right now, ${name}.`,
-          });
+      if (isDone) {
+        const taskKey = text === 'done' ? '' : text.slice(5).trim();
+
+        if (taskKey) {
+          const entry = taskHandlers[taskKey];
+          if (!entry) {
+            await bot.sendMessage(jid, {
+              text: `Unknown task. Try: *done kitchen*, *done toilet*, *done fullclean*, or *done waste*.`,
+            });
+            continue;
+          }
+          const handled = await entry.done(bot, jid, phoneJid).catch(logErr);
+          if (!handled) {
+            await bot.sendMessage(jid, { text: `You're not assigned to ${taskKey} duty right now.` });
+          }
+        } else {
+          const openTasks = (await Promise.all(
+            Object.entries(taskHandlers).map(async ([key, entry]) => {
+              const has = await entry.hasDuty(phoneJid).catch(() => false);
+              return has ? key : null;
+            })
+          )).filter(Boolean);
+
+          if (openTasks.length === 0) {
+            const phone = phoneJid.split('@')[0];
+            const member = await getMemberById(phone).catch(() => null);
+            await bot.sendMessage(jid, {
+              text: `You don't have an open duty right now, ${member?.name ?? phone}.`,
+            });
+          } else if (openTasks.length === 1) {
+            await taskHandlers[openTasks[0]].done(bot, jid, phoneJid).catch(logErr);
+          } else {
+            const options = openTasks.map((t) => `*done ${t}*`).join(', ');
+            await bot.sendMessage(jid, {
+              text: `You have multiple open duties. Which one did you finish? ${options}`,
+            });
+          }
         }
         continue;
       }
-
-      const taskHandlers = {
-        kitchen:  { takeover: kitchenTakeover,  skip: kitchenSkip  },
-        fullclean:{ takeover: fullcleanTakeover, skip: fullcleanSkip },
-        toilet:   { takeover: toiletTakeover,    skip: toiletSkip   },
-        waste:    { takeover: wasteTakeover,     skip: wasteSkip    },
-      };
 
       if (isTakeover) {
         const taskKey = text.slice(9).trim();

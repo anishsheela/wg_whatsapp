@@ -126,7 +126,8 @@ Names must match exactly (case-insensitive) what's in the `members` table.
 | Command | What it does |
 |---|---|
 | `help` | List all commands |
-| `done` | Mark your current duty as complete |
+| `done` | Mark your duty as complete — if you have multiple open duties (e.g. kitchen + toilet on a Saturday), you'll be asked to specify |
+| `done <task>` | Mark a specific duty as complete |
 | `today` | Show all current duty assignments and their status |
 | `register <name>` | Link your WhatsApp account to your member record (once per person) |
 | `takeover <task>` | Do a task on behalf of the assigned person — you get the credit |

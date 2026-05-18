@@ -79,6 +79,13 @@ export async function handleDone(sock, groupJid, senderJid) {
   return true;
 }
 
+export async function hasDuty(senderJid) {
+  const log = await getOpenLog(TASK, thisWeeklyDay());
+  if (!log) return false;
+  const senderPhone = senderJid.split('@')[0];
+  return log.member_ids.map(String).includes(senderPhone);
+}
+
 export async function handleTakeover(sock, groupJid, senderJid) {
   const date = thisWeeklyDay();
   const log = await getOpenLog(TASK, date);

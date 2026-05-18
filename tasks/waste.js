@@ -81,6 +81,13 @@ export async function handleDone(sock, groupJid, senderJid) {
   return true;
 }
 
+export async function hasDuty(senderJid) {
+  const log = await getLastLog(TASK);
+  if (!log || log.done) return false;
+  const senderPhone = senderJid.split('@')[0];
+  return String(log.member_ids[0]) === senderPhone;
+}
+
 export async function handleTakeover(sock, groupJid, senderJid) {
   const log = await getLastLog(TASK);
   if (!log || log.done) return false;

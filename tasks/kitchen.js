@@ -99,6 +99,17 @@ export async function remindKitchenMorning(sock, groupJid) {
   });
 }
 
+export async function hasDuty(senderJid) {
+  const log =
+    (await getOpenLog(TASK, today())) ||
+    (await getOpenLog(TASK, yesterday()));
+  if (!log) return false;
+  const members = await getAllMembers();
+  const senderPhone = senderJid.split('@')[0];
+  const assigned = members.find((m) => String(m.id) === String(log.member_ids[0]));
+  return assigned ? senderPhone === String(assigned.id) : false;
+}
+
 export async function handleTakeover(sock, groupJid, senderJid) {
   const log =
     (await getOpenLog(TASK, today())) ||
