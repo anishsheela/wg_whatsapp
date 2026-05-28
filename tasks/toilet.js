@@ -4,6 +4,7 @@ import {
   advanceRotation,
   createTaskLog,
   getOpenLog,
+  getAnyOpenLog,
   markDone,
   markSkipped,
   markReminded,
@@ -11,7 +12,11 @@ import {
   resetStreak,
   getStreak,
 } from '../db.js';
-import { thisWeeklyDay } from '../utils.js';
+import { nearestDayDate } from '../utils.js';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const config = require('../config.json');
 
 const TASK_F = 'toilet_f';
 const TASK_M = 'toilet_m';
@@ -35,7 +40,7 @@ export async function setToiletStartingMember(nameOrNames) {
   }
 }
 
-export async function assignToilet(sock, groupJid) {
+export async function assignToilet(sock, groupJid, dayOfWeek) {
   const females = await getMembersByGender('f');
   const males = await getMembersByGender('m');
 
@@ -44,7 +49,7 @@ export async function assignToilet(sock, groupJid) {
 
   const female = females[fIdx % females.length];
   const male = males[mIdx % males.length];
-  const date = thisWeeklyDay();
+  const date = nearestDayDate(dayOfWeek ?? config.schedule.weeklyDay);
 
   // Store as a combined log with both members so "done" handling is unified.
   await createTaskLog(TASK, date, [female.id, male.id]);
@@ -52,13 +57,12 @@ export async function assignToilet(sock, groupJid) {
   await advanceRotation(TASK_M, (mIdx + 1) % males.length);
 
   await sock.sendMessage(groupJid, {
-    text: `🚻 *Toilet duty this week:*\nLadies → ${female.name}\nGents → ${male.name}\nReply *done* when your toilet is finished.`,
+    text: `🚻 *Toilet duty:*\nLadies → ${female.name}\nGents → ${male.name}\nReply *done* when your toilet is finished.`,
   });
 }
 
 export async function remindToilet(sock, groupJid) {
-  const date = thisWeeklyDay();
-  const log = await getOpenLog(TASK, date);
+  const log = await getAnyOpenLog(TASK);
   if (!log) return;
 
   await markReminded(log.id);
@@ -73,8 +77,7 @@ export async function remindToilet(sock, groupJid) {
 // For simplicity here we mark the full log done when either person replies —
 // each person is responsible for their own toilet. They reply separately.
 export async function handleDone(sock, groupJid, senderJid) {
-  const date = thisWeeklyDay();
-  const log = await getOpenLog(TASK, date);
+  const log = await getAnyOpenLog(TASK);
   if (!log) return false;
 
   const senderPhone = senderJid.split('@')[0];
@@ -99,15 +102,14 @@ export async function handleDone(sock, groupJid, senderJid) {
 }
 
 export async function hasDuty(senderJid) {
-  const log = await getOpenLog(TASK, thisWeeklyDay());
+  const log = await getAnyOpenLog(TASK);
   if (!log) return false;
   const senderPhone = senderJid.split('@')[0];
   return log.member_ids.map(String).includes(senderPhone);
 }
 
 export async function handleTakeover(sock, groupJid, senderJid) {
-  const date = thisWeeklyDay();
-  const log = await getOpenLog(TASK, date);
+  const log = await getAnyOpenLog(TASK);
   if (!log) return false;
 
   const senderPhone = senderJid.split('@')[0];
@@ -142,8 +144,7 @@ export async function handleTakeover(sock, groupJid, senderJid) {
 }
 
 export async function handleSkip(sock, groupJid, senderJid) {
-  const date = thisWeeklyDay();
-  const log = await getOpenLog(TASK, date);
+  const log = await getAnyOpenLog(TASK);
   if (!log) return false;
 
   const senderPhone = senderJid.split('@')[0];
@@ -181,12 +182,16 @@ export async function handleSkip(sock, groupJid, senderJid) {
   // Replace only the skipping gender's slot; keep the other person's assignment.
   // The rotation index for the skipping gender was already advanced at original
   // assignment time, so it already points to the correct next person.
+  const skipDate = log.assigned_date.toISOString
+    ? log.assigned_date.toISOString().slice(0, 10)
+    : String(log.assigned_date).slice(0, 10);
+
   if (isFemale) {
     const fIdx = await getRotationIdx(TASK_F);
     const newFemale = females[fIdx % females.length];
     const male = males.find((m) => String(m.id) === String(log.member_ids[1]));
 
-    await createTaskLog(TASK, date, [newFemale.id, male.id]);
+    await createTaskLog(TASK, skipDate, [newFemale.id, male.id]);
     await advanceRotation(TASK_F, (fIdx + 1) % females.length);
 
     await sock.sendMessage(groupJid, {
@@ -197,7 +202,7 @@ export async function handleSkip(sock, groupJid, senderJid) {
     const newMale = males[mIdx % males.length];
     const female = females.find((f) => String(f.id) === String(log.member_ids[0]));
 
-    await createTaskLog(TASK, date, [female.id, newMale.id]);
+    await createTaskLog(TASK, skipDate, [female.id, newMale.id]);
     await advanceRotation(TASK_M, (mIdx + 1) % males.length);
 
     await sock.sendMessage(groupJid, {
@@ -208,8 +213,8 @@ export async function handleSkip(sock, groupJid, senderJid) {
   return true;
 }
 
-export async function closeToiletWeek(sock, groupJid) {
-  const date = thisWeeklyDay();
+export async function closeToiletWeek(sock, groupJid, dayOfWeek) {
+  const date = nearestDayDate(dayOfWeek ?? config.schedule.weeklyDay);
   const log = await getOpenLog(TASK, date);
   if (!log) return;
 

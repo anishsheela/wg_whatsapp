@@ -95,6 +95,16 @@ export async function createTaskLog(taskType, assignedDate, memberIds) {
   return rows[0];
 }
 
+export async function getAnyOpenLog(taskType) {
+  const { rows } = await pool.query(
+    `SELECT * FROM task_log
+     WHERE task_type = $1 AND done = FALSE
+     ORDER BY id DESC LIMIT 1`,
+    [taskType]
+  );
+  return rows[0] ?? null;
+}
+
 export async function getOpenLog(taskType, assignedDate) {
   const { rows } = await pool.query(
     `SELECT * FROM task_log

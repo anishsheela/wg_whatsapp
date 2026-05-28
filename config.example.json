@@ -14,6 +14,8 @@
     "weeklyDay": 6,
     "fullCleanHour": 10,
     "toiletHour": 11,
+    "toilet2Day": 3,
+    "toilet2Hour": 11,
     "weeklyReminderHour": 22,
     "wasteNotifyHour": 8,
     "wasteReminderHour": 22
