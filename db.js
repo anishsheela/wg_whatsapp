@@ -59,6 +59,21 @@ export async function getMemberByName(name) {
   return rows[0] ?? null;
 }
 
+// Members in the explicit kitchen-duty order defined in config.kitchenOrder.
+// Names are matched case-insensitively; a name with no matching member is
+// skipped (logged) so a typo in config doesn't crash the daily job.
+export async function getKitchenMembers() {
+  const members = await getAllMembers();
+  const byName = new Map(members.map((m) => [m.name.toLowerCase(), m]));
+  const ordered = [];
+  for (const name of config.kitchenOrder ?? []) {
+    const member = byName.get(name.toLowerCase());
+    if (member) ordered.push(member);
+    else console.warn(`kitchenOrder: no member named "${name}"`);
+  }
+  return ordered;
+}
+
 export async function setMemberLid(memberId, lid) {
   await pool.query('UPDATE members SET lid = $1 WHERE id = $2', [lid, memberId]);
 }
@@ -98,7 +113,7 @@ export async function createTaskLog(taskType, assignedDate, memberIds) {
 export async function getAnyOpenLog(taskType) {
   const { rows } = await pool.query(
     `SELECT * FROM task_log
-     WHERE task_type = $1 AND done = FALSE
+     WHERE task_type = $1
      ORDER BY id DESC LIMIT 1`,
     [taskType]
   );
@@ -108,69 +123,11 @@ export async function getAnyOpenLog(taskType) {
 export async function getOpenLog(taskType, assignedDate) {
   const { rows } = await pool.query(
     `SELECT * FROM task_log
-     WHERE task_type = $1 AND assigned_date = $2 AND done = FALSE
+     WHERE task_type = $1 AND assigned_date = $2
      ORDER BY id DESC LIMIT 1`,
     [taskType, assignedDate]
   );
   return rows[0] ?? null;
-}
-
-export async function markDone(logId, doneByMemberId) {
-  await pool.query(
-    `UPDATE task_log
-     SET done = TRUE, done_at = NOW(), done_by = $2
-     WHERE id = $1`,
-    [logId, doneByMemberId]
-  );
-}
-
-export async function markSkipped(logId) {
-  await pool.query(
-    'UPDATE task_log SET done = TRUE, skipped = TRUE WHERE id = $1',
-    [logId]
-  );
-}
-
-export async function markReminded(logId) {
-  await pool.query('UPDATE task_log SET reminded = TRUE WHERE id = $1', [logId]);
-}
-
-export async function getLastLog(taskType) {
-  const { rows } = await pool.query(
-    `SELECT * FROM task_log WHERE task_type = $1 ORDER BY id DESC LIMIT 1`,
-    [taskType]
-  );
-  return rows[0] ?? null;
-}
-
-// ── miss streak ───────────────────────────────────────────────────────────────
-
-export async function getStreak(memberId) {
-  const { rows } = await pool.query(
-    'SELECT streak FROM miss_streak WHERE member_id = $1',
-    [memberId]
-  );
-  return rows[0]?.streak ?? 0;
-}
-
-export async function incrementStreak(memberId) {
-  await pool.query(
-    `INSERT INTO miss_streak (member_id, streak, updated_at)
-     VALUES ($1, 1, NOW())
-     ON CONFLICT (member_id) DO UPDATE
-       SET streak = miss_streak.streak + 1, updated_at = NOW()`,
-    [memberId]
-  );
-}
-
-export async function resetStreak(memberId) {
-  await pool.query(
-    `INSERT INTO miss_streak (member_id, streak, updated_at)
-     VALUES ($1, 0, NOW())
-     ON CONFLICT (member_id) DO UPDATE
-       SET streak = 0, updated_at = NOW()`,
-    [memberId]
-  );
 }
 
 export { pool };

@@ -1,24 +1,21 @@
 {
   "groupJid": "REPLACE_WITH_GROUP_JID@g.us",
   "botName": "Karyasthan",
-  "rotationStartDates": {
-    "kitchen": "2025-01-01",
-    "fullclean": "2025-01-04",
-    "toilet": "2025-01-07"
-  },
+  "kitchenOrder": [
+    "Nandhana",
+    "Vishnu",
+    "Jinju",
+    "Manoharan",
+    "Anita",
+    "Adarsh",
+    "Abimal",
+    "Rohn",
+    "Anish"
+  ],
   "schedule": {
     "kitchenNotifyHour": 8,
-    "kitchenEveningReminderHour": 22,
-    "kitchenMorningReminderHour": 10,
-    "kitchenMorningReminderMinute": 30,
     "weeklyDay": 6,
-    "fullCleanHour": 10,
-    "toiletHour": 11,
-    "toilet2Day": 3,
-    "toilet2Hour": 11,
-    "weeklyReminderHour": 22,
-    "wasteNotifyHour": 8,
-    "wasteReminderHour": 22
+    "toilet2Day": 3
   },
   "databaseUrl": "postgresql://user:password@localhost:5432/wg_bot"
 }

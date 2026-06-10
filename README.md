@@ -1,6 +1,9 @@
 # Karyasthan 🧹
 
-WhatsApp cleaning rotation bot for a shared flat (WG). Manages daily kitchen duty and weekly full clean + toilet rotations, sends reminders, and calls out repeat offenders.
+WhatsApp cleaning rotation bot for a shared flat (WG). Each morning at 8 AM it
+announces the day's duties — daily kitchen plus the standing weekly toilet
+rotation. It is notify-only: it does not track completion, send reminders, or
+call out misses.
 
 ## Stack
 - **Runtime** Node 20
@@ -32,7 +35,7 @@ Edit `config.json`:
 |---|---|
 | `groupJid` | WhatsApp group ID — see step 5 below |
 | `botName` | Display name prefixed to every message (default: `Karyasthan`) |
-| `rotationStartDates` | YYYY-MM-DD dates from which rotation indices are calculated |
+| `kitchenOrder` | Member names, in the exact daily kitchen-duty order |
 | `schedule` | Notification times — see table below |
 | `databaseUrl` | PostgreSQL connection string |
 | `triggerPort` | Port for the internal trigger server (default: `3099`) |
@@ -41,16 +44,9 @@ Edit `config.json`:
 
 | Field | Default | Description |
 |---|---|---|
-| `kitchenNotifyHour` | `8` | Daily kitchen assignment (8AM) |
-| `kitchenEveningReminderHour` | `22` | Evening reminder if not done (10PM) |
-| `kitchenMorningReminderHour` | `10` | Next-morning reminder hour (10AM) |
-| `kitchenMorningReminderMinute` | `30` | Next-morning reminder minute (10:30AM) |
-| `weeklyDay` | `6` | Day for full clean + toilet (0=Sun … 6=Sat) |
-| `fullCleanHour` | `10` | Full clean notification hour |
-| `toiletHour` | `11` | Toilet notification hour |
-| `weeklyReminderHour` | `22` | Weekly reminder hour (same day evening) |
-| `wasteNotifyHour` | `8` | Waste disposal assignment hour |
-| `wasteReminderHour` | `22` | Waste disposal reminder hour |
+| `kitchenNotifyHour` | `8` | Hour the daily duty list is sent (8AM) |
+| `weeklyDay` | `6` | Primary toilet rotation day (0=Sun … 6=Sat) |
+| `toilet2Day` | `3` | Second toilet rotation day |
 
 `config.json` is gitignored and never committed.
 
@@ -74,7 +70,8 @@ psql $DATABASE_URL -f members_seed.sql
 > This is used as the member `id` and must match the WhatsApp JID local part.
 > WhatsApp Business accounts still use phone-number JIDs.
 
-Two members must share each `roomnumber` (1–5) — they are paired for weekly full clean.
+The kitchen rotation order is set by `kitchenOrder` in `config.json`, not by the
+table. Toilet rotation uses `gender` (`f`/`m`).
 
 ### 5. Find the group JID
 
@@ -106,66 +103,28 @@ pm2 startup
 
 ---
 
-## Member registration
-
-WhatsApp groups now use LIDs (privacy IDs) instead of phone numbers. Each member must register once so Karyasthan can identify them:
-
-Send in the group:
-```
-register YourName
-```
-
-Example: `register Maya` → Karyasthan replies ✅ and remembers you permanently.
-
-Names must match exactly (case-insensitive) what's in the `members` table.
-
----
-
 ## Group commands
 
 | Command | What it does |
 |---|---|
-| `help` | List all commands |
-| `done` | Mark your duty as complete — if you have multiple open duties (e.g. kitchen + toilet on a Saturday), you'll be asked to specify |
-| `done <task>` | Mark a specific duty as complete |
-| `today` | Show all current duty assignments and their status |
-| `register <name>` | Link your WhatsApp account to your member record (once per person) |
-| `takeover <task>` | Do a task on behalf of the assigned person — you get the credit |
-| `skip <task>` | Skip your duty; you move to the end of the rotation and the next person is assigned immediately |
+| `today` / `duties` | Re-send today's duty list |
 
-Valid task names for `takeover` and `skip`: `kitchen`, `fullclean`, `toilet`, `waste`.
-
-**Examples:**
-```
-takeover kitchen     — you cleaned the kitchen for whoever was assigned
-skip toilet          — you can't do toilet this week; next person is assigned now
-```
+Karyasthan is notify-only — there is no `done`, `takeover`, `skip`, or
+`register`. It simply announces who is on duty.
 
 ---
 
 ## How rotation works
 
-| Task | Day | Time | Cron |
-|---|---|---|---|
-| Kitchen assign | Daily | 8AM | `0 8 * * *` |
-| Kitchen reminder (evening) | Daily | 10PM | `0 22 * * *` |
-| Kitchen reminder (morning) | Daily | 10:30AM | `30 10 * * *` |
-| Kitchen close / penalise | Daily | 11AM | `0 11 * * *` |
-| Full clean assign | Saturday | 10AM | `0 10 * * 6` |
-| Toilet assign | Saturday | 11AM | `0 11 * * 6` |
-| Weekly reminder | Saturday | 10PM | `0 22 * * 6` |
-| Weekly close / penalise | Sunday | Midnight | `0 0 * * 0` |
-| Waste assign | Daily* | 8AM | `0 8 * * *` |
-| Waste reminder | Daily | 10PM | `0 22 * * *` |
-| Waste close / penalise | Daily | 11AM | `0 11 * * *` |
+| Task | When | Cron |
+|---|---|---|
+| Daily duty list | Every day at 8AM | `0 8 * * *` |
 
-\* Waste cron runs daily but only sends a notification every 2 days — it silently skips if fewer than 2 days have passed since the last assignment.
+The single 8 AM job rotates the kitchen, (re)assigns toilet on its days, and
+sends one combined message.
 
-- **Kitchen** — all members ordered by `id`, one per day
-- **Full clean** — the two members sharing each `roomnumber` are paired; pairs rotate weekly and clean all common areas
-- **Toilet** — separate weekly rotations for `gender = f` and `gender = m`
-- **Waste** — all members ordered by `id`, one person every 2 days
-- Missing a duty 2+ times in a row triggers a group callout 🙃
+- **Kitchen** — one person per day, in the order set by `kitchenOrder` in `config.json`
+- **Toilet** — separate rotations for `gender = f` and `gender = m`, reassigned on `weeklyDay` and `toilet2Day`; the standing assignees are shown every day
 
 ---
 
@@ -175,8 +134,8 @@ Go to **Actions → Trigger notification → Run workflow** and choose:
 
 | Input | Options | Description |
 |---|---|---|
-| `action` | `assign` / `remind` | Send the duty assignment or a reminder nudge |
-| `task` | `kitchen` / `fullclean` / `toilet` / `waste` | Which task to trigger |
+| `action` | `assign` / `duties` | Rotate + announce a task, or just re-send today's list |
+| `task` | `kitchen` / `toilet` | Which task to assign (ignored for `duties`) |
 | `start_from` | Member name(s) — optional | Set rotation starting point before assigning (see below) |
 
 **`start_from` behaviour per task:**
@@ -184,7 +143,6 @@ Go to **Actions → Trigger notification → Run workflow** and choose:
 | Task | Example | Effect |
 |---|---|---|
 | `kitchen` | `Maya` | Starts kitchen rotation from Maya |
-| `fullclean` | `Maya` | Finds the pair containing Maya and starts from them |
 | `toilet` | `Leah` | Sets ladies rotation to start from Leah |
 | `toilet` | `Tom` | Sets gents rotation to start from Tom |
 | `toilet` | `Leah,Tom` | Sets both rotations at once |
@@ -194,17 +152,14 @@ Leave `start_from` blank to continue in the current rotation order.
 Or trigger directly on the server:
 
 ```bash
-# Assign kitchen starting from Maya
+# Assign kitchen starting from Maya, then announce the duty list
 curl -s -X POST 'localhost:3099/assign/kitchen?from=Maya'
-
-# Assign fullclean starting from Maya's pair
-curl -s -X POST 'localhost:3099/assign/fullclean?from=Maya'
 
 # Assign toilet starting from specific people
 curl -s -X POST 'localhost:3099/assign/toilet?from=Leah,Tom'
 
-# Send a reminder for toilet
-curl -s -X POST 'localhost:3099/remind/toilet'
+# Just re-send today's duty list
+curl -s -X POST 'localhost:3099/duties'
 ```
 
 ---
@@ -238,11 +193,9 @@ db.js                      — All database queries
 trigger.js                 — Internal HTTP server for manual/CI triggers
 utils.js                   — Shared helpers (thisWeeklyDay)
 tasks/
-  kitchen.js               — Daily kitchen logic (done / takeover / skip)
-  fullclean.js             — Weekly full clean logic (done / takeover / skip)
-  toilet.js                — Weekly toilet logic (done / takeover / skip, per-gender)
-  waste.js                 — Waste disposal logic (done / takeover / skip)
-  status.js                — "today" command query
+  kitchen.js               — Daily kitchen rotation (config-ordered)
+  toilet.js                — Toilet rotation (per-gender)
+  status.js                — Builds and sends the duty list
 config.example.json        — Config template (copy to config.json)
 config.json                — Your local config (gitignored)
 migration.sql              — Creates all tables and applies schema changes

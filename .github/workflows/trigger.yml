@@ -4,19 +4,19 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "assign (send duty) or remind (nudge if not done)"
+        description: "assign (rotate + announce a task) or duties (just re-send today's list)"
         required: true
         default: assign
         type: choice
-        options: [assign, remind]
+        options: [assign, duties]
       task:
-        description: "Which task to trigger"
+        description: "Which task to assign (ignored for 'duties')"
         required: true
         default: kitchen
         type: choice
-        options: [kitchen, fullclean, toilet, waste]
+        options: [kitchen, toilet]
       start_from:
-        description: "Kitchen assign only — member name to start rotation from (leave blank to continue in order)"
+        description: "Member name to start the rotation from (leave blank to continue in order)"
         required: false
         default: ""
 
@@ -34,11 +34,17 @@ jobs:
 
       - name: Fire trigger
         run: |
-          FROM="${{ github.event.inputs.start_from }}"
-          QUERY=""
-          if [ -n "$FROM" ]; then
-            QUERY="?from=${FROM}"
+          ACTION="${{ github.event.inputs.action }}"
+          if [ "$ACTION" = "duties" ]; then
+            PATH_="duties"
+          else
+            FROM="${{ github.event.inputs.start_from }}"
+            QUERY=""
+            if [ -n "$FROM" ]; then
+              QUERY="?from=${FROM}"
+            fi
+            PATH_="assign/${{ github.event.inputs.task }}${QUERY}"
           fi
 
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "curl -sf -X POST 'localhost:3099/${{ github.event.inputs.action }}/${{ github.event.inputs.task }}${QUERY}'"
+            "curl -sf -X POST 'localhost:3099/${PATH_}'"
