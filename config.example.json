@@ -12,6 +12,11 @@
     "Rohn",
     "Anish"
   ],
+  "_kitchenOverride_comment": "Optional one-off catch-up: assigns order[N] on (startDate + N days), then resumes the normal rotation. Remove when no longer needed.",
+  "kitchenOverride": {
+    "startDate": "2025-01-01",
+    "order": []
+  },
   "schedule": {
     "kitchenNotifyHour": 8,
     "weeklyDay": 6,

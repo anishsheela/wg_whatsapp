@@ -5,11 +5,40 @@ import {
   createTaskLog,
   getOpenLog,
 } from '../db.js';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const config = require('../config.json');
 
 const TASK = 'kitchen';
 
 function today() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function daysBetween(startDate, endDate) {
+  const ms = Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`);
+  return Math.round(ms / 86400000);
+}
+
+// A one-off catch-up sequence that takes precedence over the normal rotation
+// for a fixed window of days, after which the usual rotation resumes. Configured
+// via config.kitchenOverride = { startDate: "YYYY-MM-DD", order: [names...] }.
+// Returns the member assigned for `date`, or null if no override applies.
+function pickOverride(date, members) {
+  const ov = config.kitchenOverride;
+  if (!ov?.startDate || !Array.isArray(ov.order)) return null;
+
+  const offset = daysBetween(ov.startDate, date);
+  if (offset < 0 || offset >= ov.order.length) return null;
+
+  const name = ov.order[offset];
+  const member = members.find((m) => m.name.toLowerCase() === name.toLowerCase());
+  if (!member) {
+    console.warn(`kitchenOverride: no member named "${name}" — falling back to rotation`);
+    return null;
+  }
+  return member;
 }
 
 // Assign today's kitchen person and advance the rotation.
@@ -29,6 +58,14 @@ export async function assignKitchen(force = false) {
 
   const members = await getKitchenMembers();
   if (members.length === 0) return null;
+
+  // During the override window, assign the fixed catch-up person and leave the
+  // rotation pointer untouched so the usual order resumes cleanly afterwards.
+  const override = pickOverride(date, members);
+  if (override) {
+    await createTaskLog(TASK, date, [override.id]);
+    return override;
+  }
 
   const idx = await getRotationIdx(TASK);
   const assigned = members[idx % members.length];
